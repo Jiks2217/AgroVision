@@ -1,5 +1,7 @@
 package com.auxion.agrovision;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
@@ -13,6 +15,7 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import java.io.File;
 import java.io.InputStream;
@@ -28,6 +31,7 @@ public class MainActivity extends AppCompatActivity {
     private Bitmap currentBitmap;
     private Uri cameraImageUri;
 
+    // Launchers
     private final ActivityResultLauncher<String> pickImageLauncher =
             registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
                 if (uri != null) loadImagePreview(uri);
@@ -36,6 +40,16 @@ public class MainActivity extends AppCompatActivity {
     private final ActivityResultLauncher<Uri> takePictureLauncher =
             registerForActivityResult(new ActivityResultContracts.TakePicture(), success -> {
                 if (success && cameraImageUri != null) loadImagePreview(cameraImageUri);
+            });
+
+    // Permission Launcher
+    private final ActivityResultLauncher<String> requestPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                if (isGranted) {
+                    openCamera();
+                } else {
+                    Toast.makeText(this, "Camera permission is required to take photos.", Toast.LENGTH_SHORT).show();
+                }
             });
 
     @Override
@@ -56,14 +70,12 @@ public class MainActivity extends AppCompatActivity {
             tvResult.setText("Error loading model: " + e.getMessage());
         }
 
+        // Check for Camera Permission before opening
         btnTakePhoto.setOnClickListener(v -> {
-            try {
-                File photoFile = File.createTempFile("leaf_", ".jpg", getCacheDir());
-                cameraImageUri = FileProvider.getUriForFile(this,
-                        "com.auxion.agrovision.fileprovider", photoFile);
-                takePictureLauncher.launch(cameraImageUri);
-            } catch (Exception e) {
-                Toast.makeText(this, "Failed to open camera", Toast.LENGTH_SHORT).show();
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                openCamera();
+            } else {
+                requestPermissionLauncher.launch(Manifest.permission.CAMERA);
             }
         });
 
@@ -71,9 +83,19 @@ public class MainActivity extends AppCompatActivity {
         btnAnalyze.setOnClickListener(v -> analyzeImage());
     }
 
+    private void openCamera() {
+        try {
+            File photoFile = File.createTempFile("leaf_", ".jpg", getCacheDir());
+            cameraImageUri = FileProvider.getUriForFile(this,
+                    "com.auxion.agrovision.fileprovider", photoFile);
+            takePictureLauncher.launch(cameraImageUri);
+        } catch (Exception e) {
+            Toast.makeText(this, "Failed to open camera: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void loadImagePreview(Uri uri) {
         try {
-            // Use BitmapFactory (works on all Android versions)
             InputStream inputStream = getContentResolver().openInputStream(uri);
             currentBitmap = BitmapFactory.decodeStream(inputStream);
             if (inputStream != null) inputStream.close();
