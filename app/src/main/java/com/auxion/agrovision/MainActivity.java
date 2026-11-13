@@ -1,7 +1,7 @@
 package com.auxion.agrovision;
 
 import android.graphics.Bitmap;
-import android.graphics.ImageDecoder;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
@@ -15,7 +15,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
 import java.io.File;
-import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
@@ -52,7 +52,7 @@ public class MainActivity extends AppCompatActivity {
 
         try {
             classifier = new PlantClassifier(this);
-        } catch (IOException e) {
+        } catch (Exception e) {
             tvResult.setText("Error loading model: " + e.getMessage());
         }
 
@@ -62,8 +62,8 @@ public class MainActivity extends AppCompatActivity {
                 cameraImageUri = FileProvider.getUriForFile(this,
                         "com.auxion.agrovision.fileprovider", photoFile);
                 takePictureLauncher.launch(cameraImageUri);
-            } catch (IOException e) {
-                Toast.makeText(this, "Failed to create temp file", Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Toast.makeText(this, "Failed to open camera", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -73,13 +73,21 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadImagePreview(Uri uri) {
         try {
-            currentBitmap = ImageDecoder.decodeBitmap(
-                    ImageDecoder.createSource(getContentResolver(), uri));
+            // Use BitmapFactory (works on all Android versions)
+            InputStream inputStream = getContentResolver().openInputStream(uri);
+            currentBitmap = BitmapFactory.decodeStream(inputStream);
+            if (inputStream != null) inputStream.close();
+
+            if (currentBitmap == null) {
+                tvResult.setText("Could not load image.");
+                return;
+            }
+
             imagePreview.setImageBitmap(currentBitmap);
             tvResult.setText("Image ready. Tap 'Analyze Leaf' to scan.");
             btnAnalyze.setEnabled(true);
-        } catch (IOException e) {
-            tvResult.setText("Error loading image: " + e.getMessage());
+        } catch (Exception e) {
+            tvResult.setText("Error: " + e.getMessage());
         }
     }
 
@@ -91,12 +99,20 @@ public class MainActivity extends AppCompatActivity {
         btnAnalyze.setEnabled(false);
 
         new Thread(() -> {
-            List<PlantClassifier.Prediction> results = classifier.classify(currentBitmap);
-            runOnUiThread(() -> {
-                progressBar.setVisibility(View.GONE);
-                btnAnalyze.setEnabled(true);
-                displayResults(results);
-            });
+            try {
+                List<PlantClassifier.Prediction> results = classifier.classify(currentBitmap);
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    btnAnalyze.setEnabled(true);
+                    displayResults(results);
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    btnAnalyze.setEnabled(true);
+                    tvResult.setText("Analysis failed: " + e.getMessage());
+                });
+            }
         }).start();
     }
 
