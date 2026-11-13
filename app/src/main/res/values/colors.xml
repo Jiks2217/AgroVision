@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="blue_primary">#1565C0</color>   <!-- Main Blue -->
+    <color name="blue_dark">#0D47A1</color>      <!-- Dark Blue for text -->
+    <color name="blue_light">#E3F2FD</color>     <!-- Very light blue for backgrounds -->
+    <color name="white">#FFFFFF</color>
+    <color name="text_dark">#212121</color>
+    <color name="text_light">#757575</color>
+</resources>
